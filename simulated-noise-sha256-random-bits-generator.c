@@ -1,7 +1,7 @@
 /*
 Created by Tsubasa Kato with the help of ChatGPT (GPT-4)
 (C) Tsubasa Kato - 5/8/2024 - Intended for Experimental Use.
-Tested to work on MacOS Sonoma 14 with OpenSSL 3. (5/23/2024 - 21:51PM)
+Tested to work on MacOS Sonoma 14.x with OpenSSL 3. (5/23/2024 - 21:51PM)
 Read Readme for details on how to compile.
 */
 
