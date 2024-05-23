@@ -1,8 +1,8 @@
 /*
 Created by Tsubasa Kato with the help of ChatGPT (GPT-4)
-(C) Tsubasa Kato - 5/23/2024 - Intended for Experimental Use.
-This is a C version converted from the Python 3 version.
-Not tested yet as of 5/23/2024 21:21PM JST
+(C) Tsubasa Kato - 5/8/2024 - Intended for Experimental Use.
+Tested to work on MacOS Sonoma 14 with OpenSSL 3. (5/23/2024 - 21:51PM)
+Read Readme for details on how to compile.
 */
 
 #include <stdio.h>
@@ -10,20 +10,17 @@ Not tested yet as of 5/23/2024 21:21PM JST
 #include <string.h>
 #include <stdint.h>
 #include <math.h>
-#include <openssl/sha.h>
+#include <openssl/evp.h>
+#include <openssl/rand.h>
 
-// Define the source size
 #define SOURCE_SIZE 64
 
 // Function to collect noise using OS entropy
 void collect_noise(uint8_t *noise) {
-    FILE *fp = fopen("/dev/urandom", "rb");
-    if (fp == NULL) {
-        perror("Failed to open /dev/urandom");
+    if (RAND_bytes(noise, SOURCE_SIZE) != 1) {
+        fprintf(stderr, "Failed to collect noise using RAND_bytes\n");
         exit(EXIT_FAILURE);
     }
-    fread(noise, 1, SOURCE_SIZE, fp);
-    fclose(fp);
 }
 
 // Function to perform health tests on the collected noise
@@ -65,10 +62,31 @@ double estimate_entropy(uint8_t *noise) {
 
 // Function to condition the raw noise using SHA-256
 void condition(uint8_t *noise, uint8_t *hash_result) {
-    SHA256_CTX sha256;
-    SHA256_Init(&sha256);
-    SHA256_Update(&sha256, noise, SOURCE_SIZE);
-    SHA256_Final(hash_result, &sha256);
+    EVP_MD_CTX *mdctx;
+    if((mdctx = EVP_MD_CTX_new()) == NULL) {
+        fprintf(stderr, "EVP_MD_CTX_new failed\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if(1 != EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL)) {
+        fprintf(stderr, "EVP_DigestInit_ex failed\n");
+        EVP_MD_CTX_free(mdctx);
+        exit(EXIT_FAILURE);
+    }
+
+    if(1 != EVP_DigestUpdate(mdctx, noise, SOURCE_SIZE)) {
+        fprintf(stderr, "EVP_DigestUpdate failed\n");
+        EVP_MD_CTX_free(mdctx);
+        exit(EXIT_FAILURE);
+    }
+
+    if(1 != EVP_DigestFinal_ex(mdctx, hash_result, NULL)) {
+        fprintf(stderr, "EVP_DigestFinal_ex failed\n");
+        EVP_MD_CTX_free(mdctx);
+        exit(EXIT_FAILURE);
+    }
+
+    EVP_MD_CTX_free(mdctx);
 }
 
 // Function to generate random bits following NIST SP 800-90B guidelines
@@ -81,7 +99,7 @@ void generate_random_bits(uint8_t *random_bits, int bit_length) {
         fprintf(stderr, "Insufficient entropy\n");
         exit(EXIT_FAILURE);
     }
-    uint8_t conditioned_output[SHA256_DIGEST_LENGTH];
+    uint8_t conditioned_output[EVP_MAX_MD_SIZE];
     condition(noise, conditioned_output);
     memcpy(random_bits, conditioned_output, bit_length / 8);
 }
